@@ -4,10 +4,11 @@ from re import compile
 from smtplib import SMTP
 from email import message_from_bytes
 from pathlib import Path
+from os import path, makedirs
+from imghdr import what
 import typer
 import json
 import errno
-from os import path, makedirs
 
 
 app = typer.Typer()
@@ -16,6 +17,7 @@ APP_NAME = 'mailsy'
 
 @app.command()
 def setup():
+
     email = typer.prompt(typer.style(
         "\n\tEmail: ", fg=typer.colors.MAGENTA, bold=True))
     password = typer.prompt(typer.style(
@@ -82,11 +84,17 @@ def list(page: int = 1):
 def send():
     config = load_config()
     email_id = typer.prompt(typer.style(
-        "\n\tRecipent(s): ", fg=typer.colors.MAGENTA, bold=True))
+        "\n\tRecipent(s) ", fg=typer.colors.MAGENTA, bold=True))
     subject = typer.prompt(typer.style(
-        "\tSubject: ", fg=typer.colors.MAGENTA, bold=True))
+        "\tSubject ", fg=typer.colors.MAGENTA, bold=True))
     body = typer.prompt(typer.style(
-        "\tBody: ", fg=typer.colors.MAGENTA, bold=True))
+        "\tBody ", fg=typer.colors.MAGENTA, bold=True))
+    attach = typer.confirm(typer.style(
+        "\tAttach Files?", fg=typer.colors.BLUE, bold=True))
+    if attach:
+        attachment = typer.prompt(typer.style(
+            "\tAttachment (path) ", fg=typer.colors.MAGENTA, bold=True))
+        attach_data, attach_type, attach_name = get_attachment(attachment)
     send = typer.confirm(typer.style(
         "\tSend it?", fg=typer.colors.MAGENTA, bold=True))
 
@@ -101,6 +109,10 @@ def send():
             msg['Subject'] = subject
             msg['From'] = config['EMAIL_ID']
             msg['To'] = email_id
+
+            if attach:
+                msg.add_attachment(attach_data, maintype='image',
+                                   subtype=attach_type, filename=attach_name)
 
             server.sendmail(config['EMAIL_ID'], email_id, msg.as_string())
 
@@ -127,6 +139,20 @@ def load_config():
     with open(config_path, 'r') as configs:
         configs_dict = json.load(configs)
     return configs_dict
+
+
+def get_attachment(attachment_path):
+    attachment_path: Path = Path(attachment_path)
+    if not attachment_path.is_file():
+        typer.echo(typer.style("\n\tCan not find attachment!",
+                   fg=typer.colors.RED, bold=True), err=True)
+
+    with open(attachment_path, 'rb') as file:
+        image_data = file.read()
+        image_type = what(file.name)
+        image_name = file.name
+
+    return image_data, image_type, image_name
 
 
 if __name__ == "__main__":
