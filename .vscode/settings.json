@@ -1,0 +1,4 @@
+{
+    "python.pythonPath": "/home/user1/.cache/pypoetry/virtualenvs/mailsy-Vilofz-9-py3.9/bin/python",
+    "python.formatting.provider": "black"
+}
