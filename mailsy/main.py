@@ -97,6 +97,7 @@ def list(page: int = 1):
 @app.command()
 def send():
     config = load_config()
+    use_template = True
     email_id = typer.prompt(
         typer.style("\n\tRecipent(s) ", fg=typer.colors.MAGENTA, bold=True)
     )
@@ -121,17 +122,20 @@ def send():
             server.starttls()
             server.login(config["EMAIL_ID"], config["EMAIL_PASS"])
             msg = EmailMessage()
-            msg.set_content(
-                get_templated(
-                    {
-                        "name": config["NAME"],
-                        "from": config["EMAIL_ID"],
-                        "to": email_id,
-                        "msg": body,
-                    }
-                ),
-                subtype="html",
-            )
+            if use_template:
+                msg.set_content(
+                    get_templated(
+                        {
+                            "name": config["NAME"],
+                            "from": config["EMAIL_ID"],
+                            "to": email_id,
+                            "msg": body,
+                        }
+                    ),
+                    subtype="html",
+                )
+            else:
+                msg.set_content(body)
             msg["Subject"] = subject
             msg["From"] = config["EMAIL_ID"]
             msg["To"] = email_id
