@@ -1,4 +1,5 @@
 from email.message import EmailMessage
+from .exception import ConfigError
 from imaplib import IMAP4_SSL
 from re import compile
 from smtplib import SMTP
@@ -15,9 +16,81 @@ app = typer.Typer()
 APP_NAME = 'mailsy'
 
 
+class Mailsy:
+
+    def __init__(self):
+        self.smtp = 'smtp.gmail.com'
+        self.smtp_port = 587
+        self.app_name = 'mailsy'
+        self.senders_name_re = compile('(.*)<')
+        self._config()
+
+    def _config(self):
+        app_dir = typer.get_app_dir(APP_NAME)
+        config_path: Path = Path(app_dir) / "config.json"
+        if not config_path.is_file():
+            raise ConfigError('Config file not found! Please setup')
+
+        with open(config_path, 'r') as configs:
+            configs_dict = json.load(configs)
+
+        self.email_id = configs_dict['EMAIL_ID']
+        self.email_pass = configs_dict['EMAIL_PASS']
+        self.columns = int(configs_dict['COLUMNS']) - 12
+        self.inbox_size = configs_dict['EMAIL_INBOX_SIZE']
+        self.from_width = int(self.columns*0.25)
+
+    def _setup_config(self, email, password):
+        json_configs = json.dumps({
+            'EMAIL_ID': email,
+            'EMAIL_PASS': password,
+            'EMAIL_INBOX_SIZE': 10,
+            'COLUMNS': 113
+        }, indent=4)
+        app_dir = typer.get_app_dir(APP_NAME)
+        config_path: Path = Path(app_dir) / "config.json"
+
+        if not path.exists(path.dirname(config_path)):
+            try:
+                makedirs(path.dirname(config_path))
+            except OSError as exc:  # Guard against race condition
+                if exc.errno != errno.EEXIST:
+                    raise
+
+        with open(config_path, "w") as config:
+            config.write(json_configs)
+
+    def list_email(self, page=1):
+        mail = IMAP4_SSL(self.smtp)
+        mail.login(self.email_id, self.email_pass)
+        mail.select('inbox')
+        subject_width = self.columns - self.from_width
+        page -= 1
+
+        _, data = mail.search(None, 'ALL')
+        mail_ids = data[0]
+        id_list = mail_ids.split()
+        latest_email_id = int(id_list[-1]) - self.inbox_size*page
+        first_email_id = max(latest_email_id-self.inbox_size, 0)
+
+    def _send_email(self, body: str, subject: str, email_id: str, attach_data: str = None, attach_name: str = None, attach_type: str = None):
+        server = SMTP(self.smtp, self.smtp_port)
+        server.starttls()
+        server.login(self.email_id, self.email_pass)
+        msg = EmailMessage()
+        msg.set_content(body)
+        msg['Subject'] = subject
+        msg['From'] = self.email_id
+        msg['To'] = email_id
+        if attach_data:
+            msg.add_attachment(attach_data, maintype='image',
+                               subtype=attach_type, filename=attach_name)
+        server.sendmail(self.email_id, email_id, msg.as_string())
+        server.quit()
+
+
 @app.command()
 def setup():
-
     email = typer.prompt(typer.style(
         "\n\tEmail: ", fg=typer.colors.MAGENTA, bold=True))
     password = typer.prompt(typer.style(
