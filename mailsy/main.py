@@ -3,6 +3,7 @@ from imaplib import IMAP4_SSL
 from re import compile
 import smtplib
 from email import message_from_bytes
+from mailsy.email_template import get_templated
 from pathlib import Path
 from os import path, makedirs
 from imghdr import what
@@ -17,6 +18,7 @@ APP_NAME = "mailsy"
 
 @app.command()
 def setup():
+    name = typer.prompt(typer.style("\n\tName: ", fg=typer.colors.MAGENTA, bold=True))
     email = typer.prompt(typer.style("\n\tEmail: ", fg=typer.colors.MAGENTA, bold=True))
     password = typer.prompt(
         typer.style("\n\tPassword: ", fg=typer.colors.MAGENTA, bold=True),
@@ -29,6 +31,7 @@ def setup():
             "EMAIL_PASS": password,
             "EMAIL_INBOX_SIZE": 10,
             "COLUMNS": 113,
+            "NAME": name,
         },
         indent=4,
     )
@@ -118,7 +121,17 @@ def send():
             server.starttls()
             server.login(config["EMAIL_ID"], config["EMAIL_PASS"])
             msg = EmailMessage()
-            msg.set_content(body)
+            msg.set_content(
+                get_templated(
+                    {
+                        "name": config["NAME"],
+                        "from": config["EMAIL_ID"],
+                        "to": email_id,
+                        "msg": body,
+                    }
+                ),
+                subtype="html",
+            )
             msg["Subject"] = subject
             msg["From"] = config["EMAIL_ID"]
             msg["To"] = email_id

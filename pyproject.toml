@@ -11,6 +11,7 @@ mailsy = "mailsy.main:app"
 [tool.poetry.dependencies]
 python = "^3.9"
 typer = "^0.3.2"
+Jinja2 = "^3.0.1"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
