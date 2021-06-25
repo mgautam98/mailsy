@@ -27,15 +27,38 @@ def setup():
         typer.style("\n\tPassword: ", fg=typer.colors.MAGENTA, bold=True),
         hide_input=True,
     )
+    use_template = typer.confirm(
+        typer.style(
+            "\tUse HTML Template for sending emails?", fg=typer.colors.BLUE, bold=True
+        )
+    )
+    configs = {
+        "EMAIL_ID": email,
+        "EMAIL_PASS": password,
+        "EMAIL_INBOX_SIZE": 10,
+        "COLUMNS": 113,
+        "NAME": name,
+        "USE_TEMPLATE": use_template,
+        "JOB_TITLE": None,
+        "COMPANY": None,
+        "CONTACT": None,
+    }
+    if use_template:
+        job_title = typer.prompt(
+            typer.style("\n\tJob Title: ", fg=typer.colors.MAGENTA, bold=True)
+        )
+        company = typer.prompt(
+            typer.style("\n\tCompany Name: ", fg=typer.colors.MAGENTA, bold=True)
+        )
+        contact = typer.prompt(
+            typer.style("\n\tContact No.: ", fg=typer.colors.MAGENTA, bold=True)
+        )
+        configs["JOB_TITLE"] = job_title
+        configs["COMPANY"] = company
+        configs["CONTACT"] = contact
 
     json_configs = json.dumps(
-        {
-            "EMAIL_ID": email,
-            "EMAIL_PASS": password,
-            "EMAIL_INBOX_SIZE": 10,
-            "COLUMNS": 113,
-            "NAME": name,
-        },
+        configs,
         indent=4,
     )
     app_dir = typer.get_app_dir(APP_NAME)
@@ -51,6 +74,9 @@ def setup():
 
     with open(config_path, "w") as config:
         config.write(json_configs)
+    typer.echo(
+        typer.style("\n\tConfigurations Updated!", fg=typer.colors.GREEN, bold=True)
+    )
 
 
 @app.command()
@@ -104,7 +130,6 @@ def send():
     can send with HTML template and attachments
     """
     config = load_config()
-    use_template = True
     email_id = typer.prompt(
         typer.style("\n\tRecipent(s) ", fg=typer.colors.MAGENTA, bold=True)
     )
@@ -129,7 +154,7 @@ def send():
             server.starttls()
             server.login(config.email_id, config.password)
             msg = EmailMessage()
-            if use_template:
+            if config.use_template:
                 msg.set_content(
                     get_templated(
                         {
@@ -137,6 +162,9 @@ def send():
                             "from": config.email_id,
                             "to": email_id,
                             "msg": body,
+                            "job_title": config.job_title,
+                            "company": config.company,
+                            "contact": config.contact,
                         }
                     ),
                     subtype="html",
