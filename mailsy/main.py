@@ -1,9 +1,9 @@
 from email.message import EmailMessage
 from imaplib import IMAP4_SSL
-from re import compile
 import smtplib
 from email import message_from_bytes
 from mailsy.email_template import get_templated
+from mailsy.utils import Config
 from pathlib import Path
 from os import path, makedirs
 from imghdr import what
@@ -18,6 +18,10 @@ APP_NAME = "mailsy"
 
 @app.command()
 def setup():
+    """Setup gmail account
+    asks for name, email, password
+    stores it into config file in home
+    """
     name = typer.prompt(typer.style("\n\tName: ", fg=typer.colors.MAGENTA, bold=True))
     email = typer.prompt(typer.style("\n\tEmail: ", fg=typer.colors.MAGENTA, bold=True))
     password = typer.prompt(
@@ -52,25 +56,24 @@ def setup():
 
 @app.command()
 def list(page: int = 1):
-    config = load_config()
-    mail = IMAP4_SSL("imap.gmail.com")
-    mail.login(config["EMAIL_ID"], config["EMAIL_PASS"])
-    mail.select("inbox")
+    """List unread emails from inbox.
+    Has pagination support.
 
-    # SETTINGS
-    inbox_size = int(config["EMAIL_INBOX_SIZE"])
-    columns = int(config["COLUMNS"]) - 12
-    senders_name = compile("(.*)<")
-    from_width = int(columns * 0.25)
-    subject_width = columns - from_width
+    Args:
+        page (int, optional): page number. Defaults to 1.
+    """
+    config = load_config()
+    mail = IMAP4_SSL(config.imap_domain)
+    mail.login(config.email_id, config.password)
+    mail.select("inbox")
     page -= 1
 
     # Getting ids
     _, data = mail.search(None, "ALL")
     mail_ids = data[0]
     id_list = mail_ids.split()
-    latest_email_id = int(id_list[-1]) - inbox_size * page
-    first_email_id = max(latest_email_id - inbox_size, 0)
+    latest_email_id = int(id_list[-1]) - config.inbox_size * page
+    first_email_id = max(latest_email_id - config.inbox_size, 0)
 
     for i in range(latest_email_id, first_email_id, -1):
         _, data = mail.fetch(str(i), "(RFC822)")
@@ -78,9 +81,11 @@ def list(page: int = 1):
             if isinstance(response_part, tuple):
                 msg = message_from_bytes(response_part[1])
                 email_from_raw = (
-                    senders_name.search(msg["from"]).group(1).ljust(from_width)
+                    config.senders_name.search(msg["from"])
+                    .group(1)
+                    .ljust(config.from_width)
                 )
-                email_subject = msg["subject"][:60].ljust(subject_width)
+                email_subject = msg["subject"][:60].ljust(config.subject_width)
                 email_from = typer.style(
                     email_from_raw, fg=typer.colors.MAGENTA, bold=True
                 )
@@ -96,6 +101,9 @@ def list(page: int = 1):
 
 @app.command()
 def send():
+    """Command to send email
+    can send with HTML template and attachments
+    """
     config = load_config()
     use_template = True
     email_id = typer.prompt(
@@ -118,16 +126,16 @@ def send():
     if send:
         try:
             # Connect to GMAIL
-            server = smtplib.SMTP("smtp.gmail.com", 587)
+            server = smtplib.SMTP(config.smtp_domain, config.smtp_port)
             server.starttls()
-            server.login(config["EMAIL_ID"], config["EMAIL_PASS"])
+            server.login(config.email_id, config.password)
             msg = EmailMessage()
             if use_template:
                 msg.set_content(
                     get_templated(
                         {
-                            "name": config["NAME"],
-                            "from": config["EMAIL_ID"],
+                            "name": config.name,
+                            "from": config.email_id,
                             "to": email_id,
                             "msg": body,
                         }
@@ -137,7 +145,7 @@ def send():
             else:
                 msg.set_content(body)
             msg["Subject"] = subject
-            msg["From"] = config["EMAIL_ID"]
+            msg["From"] = config.email_id
             msg["To"] = email_id
 
             if attach:
@@ -148,7 +156,7 @@ def send():
                     filename=attach_name,
                 )
 
-            server.sendmail(config["EMAIL_ID"], email_id, msg.as_string())
+            server.sendmail(config.email_id, email_id, msg.as_string())
 
             typer.echo(typer.style("\n\tEmail Sent!", fg=typer.colors.GREEN, bold=True))
         except smtplib.SMTPRecipientsRefused:
@@ -168,6 +176,14 @@ def send():
 
 
 def load_config():
+    """loads configurations from config file
+
+    Raises:
+        typer.Exit: if config file is not fount
+
+    Returns:
+        dict: configurations
+    """
     app_dir = typer.get_app_dir(APP_NAME)
     config_path: Path = Path(app_dir) / "config.json"
     if not config_path.is_file():
@@ -181,10 +197,21 @@ def load_config():
 
     with open(config_path, "r") as configs:
         configs_dict = json.load(configs)
-    return configs_dict
+    return Config(**configs_dict)
 
 
 def get_attachment(attachment_path):
+    """Helper function to get attachment
+
+    Args:
+        attachment_path (path): path to attachment file
+
+    Raises:
+        typer.Exit: if file not founnd
+
+    Returns:
+        tuple: file_data, file_type, file_name
+    """
     attachment_path: Path = Path(attachment_path)
     if not attachment_path.is_file():
         typer.echo(
