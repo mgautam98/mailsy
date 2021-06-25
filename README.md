@@ -1,5 +1,7 @@
 # Mailsy
-<div style="text-align:center"><img src="mailsy.jpg" /></div>
+<p align="center">
+  <img src="mailsy.jpg" alt="Mailsy" width="300"/>
+</p>
 
 
 > Gmail Terminal Client
