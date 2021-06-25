@@ -6,7 +6,6 @@ from mailsy.email_template import get_templated
 from mailsy.utils import Config
 from pathlib import Path
 from os import path, makedirs
-from imghdr import what
 import typer
 import json
 import errno
@@ -120,7 +119,7 @@ def send():
         attachment = typer.prompt(
             typer.style("\tAttachment (path) ", fg=typer.colors.MAGENTA, bold=True)
         )
-        attach_data, attach_type, attach_name = get_attachment(attachment)
+        attach_data, attach_name = get_attachment(attachment)
     send = typer.confirm(typer.style("\tSend it?", fg=typer.colors.MAGENTA, bold=True))
 
     if send:
@@ -175,7 +174,7 @@ def send():
         )
 
 
-def load_config():
+def load_config() -> Config:
     """loads configurations from config file
 
     Raises:
@@ -200,7 +199,7 @@ def load_config():
     return Config(**configs_dict)
 
 
-def get_attachment(attachment_path):
+def get_attachment(attachment_path: str) -> tuple:
     """Helper function to get attachment
 
     Args:
@@ -222,10 +221,9 @@ def get_attachment(attachment_path):
 
     with open(attachment_path, "rb") as file:
         file_data = file.read()
-        file_type = what(file.name)
         file_name = path.basename(file.name)
 
-    return file_data, file_type, file_name
+    return file_data, file_name
 
 
 if __name__ == "__main__":
